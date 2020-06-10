@@ -8,6 +8,7 @@ use env_logger::Env;
 
 mod api;
 mod cli;
+mod entities;
 mod errors;
 mod storage;
 
