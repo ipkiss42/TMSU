@@ -1,8 +1,13 @@
+pub mod file;
+pub mod filetag;
 mod schema;
+pub mod tag;
 mod upgrade;
+pub mod value;
 
 use std::path::{Path, PathBuf};
 
+use crate::entities::TagId;
 use crate::errors::*;
 
 pub struct Storage {
@@ -16,6 +21,11 @@ impl Storage {
         info!("Creating database at {}", db_path.display());
         Self::create_or_open(db_path)?;
         Ok(())
+    }
+
+    pub fn open(db_path: &Path) -> Result<Self> {
+        info!("Opening database at {}", db_path.display());
+        Self::create_or_open(db_path)
     }
 
     /// Open a sqlite3 DB file, also creating it if it doesn't already exist.
@@ -107,6 +117,34 @@ impl<'a> Transaction<'a> {
         Ok(self.tx.execute(sql, params)?)
     }
 
+    /// Execute a query and create one object per returned line.
+    ///
+    /// This is similar to rusqlite::Statement::query_map_and_then(), but the passed function can
+    /// return errors that are not from rusqlite.
+    fn query_vec<T, F>(&mut self, sql: &str, f: F) -> Result<Vec<T>>
+    where
+        F: Fn(Row<'_>) -> Result<T>,
+    {
+        self.query_vec_params(sql, Self::NO_PARAMS, f)
+    }
+
+    fn query_vec_params<T, P, F>(&mut self, sql: &str, params: P, f: F) -> Result<Vec<T>>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+        F: Fn(Row<'_>) -> Result<T>,
+    {
+        let mut stmt = self.tx.prepare(sql)?;
+        let mut rows = stmt.query(params)?;
+
+        let mut objects = Vec::new();
+        while let Some(row) = rows.next()? {
+            objects.push(f(Row::new(row))?);
+        }
+
+        Ok(objects)
+    }
+
     fn query_single<T, F>(&mut self, sql: &str, f: F) -> Result<Option<T>>
     where
         F: FnOnce(Row<'_>) -> Result<T>,
@@ -115,6 +153,18 @@ impl<'a> Transaction<'a> {
         let mut rows = stmt.query(Self::NO_PARAMS)?;
 
         rows.next()?.map(|r| Row::new(r)).map(f).transpose()
+    }
+
+    fn count_from_table(&mut self, table_name: &str) -> Result<u64> {
+        let sql = format!(
+            "
+SELECT count(*)
+FROM {}",
+            table_name
+        );
+
+        let value: u32 = self.tx.query_row(&sql, Self::NO_PARAMS, |row| row.get(0))?;
+        Ok(value as u64)
     }
 }
 
@@ -137,5 +187,17 @@ impl<'a> Row<'a> {
         T: rusqlite::types::FromSql,
     {
         Ok(self.0.get(index)?)
+    }
+}
+
+impl rusqlite::types::FromSql for TagId {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        u32::column_result(value).map(TagId)
+    }
+}
+
+impl rusqlite::ToSql for TagId {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
     }
 }
