@@ -1,6 +1,7 @@
 mod delete;
 mod info;
 mod init;
+mod merge;
 mod rename;
 
 use std::env;
@@ -58,6 +59,7 @@ enum SubCommands {
     Delete(delete::DeleteOptions),
     Info(info::InfoOptions),
     Init(init::InitOptions),
+    Merge(merge::MergeOptions),
     Rename(rename::RenameOptions),
 }
 
@@ -69,6 +71,7 @@ pub fn run() -> Result<()> {
         SubCommands::Delete(delete_opts) => delete_opts.execute(&opt.global_opts),
         SubCommands::Info(info_opts) => info_opts.execute(&opt.global_opts),
         SubCommands::Init(init_opts) => init_opts.execute(),
+        SubCommands::Merge(merge_opts) => merge_opts.execute(&opt.global_opts),
         SubCommands::Rename(rename_opts) => rename_opts.execute(&opt.global_opts),
     }
 }
