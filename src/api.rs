@@ -1,6 +1,7 @@
 pub mod delete;
 pub mod info;
 pub mod init;
+pub mod merge;
 pub mod rename;
 
 use error_chain::ensure;

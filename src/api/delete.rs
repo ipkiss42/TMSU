@@ -36,13 +36,13 @@ pub fn run_delete_value(db_path: &Path, value_names: &[&str]) -> Result<()> {
     tx.commit()
 }
 
-fn delete_tag(tx: &mut Transaction, tag: &Tag) -> Result<()> {
+pub fn delete_tag(tx: &mut Transaction, tag: &Tag) -> Result<()> {
     delete_file_tags_by_tag_id(tx, tag)?;
     storage::implication::delete_implications_by_tag_id(tx, &tag.id)?;
     storage::tag::delete_tag(tx, &tag.id)
 }
 
-fn delete_value(tx: &mut Transaction, value: &Value) -> Result<()> {
+pub fn delete_value(tx: &mut Transaction, value: &Value) -> Result<()> {
     delete_file_tags_by_value_id(tx, value)?;
     storage::implication::delete_implications_by_value_id(tx, &value.id)?;
     storage::value::delete_value(tx, &value.id)

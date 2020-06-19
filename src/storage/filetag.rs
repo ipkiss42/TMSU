@@ -1,4 +1,4 @@
-use crate::entities::{FileTag, TagId, ValueId};
+use crate::entities::{FileId, FileTag, TagId, ValueId};
 use crate::errors::*;
 use crate::storage::{Row, Transaction};
 
@@ -40,6 +40,26 @@ fn parse_file_tag(row: Row) -> Result<FileTag> {
         explicit: true,
         implicit: false,
     })
+}
+
+pub fn add_file_tag(
+    tx: &mut Transaction,
+    file_id: FileId,
+    tag_id: TagId,
+    value_id: Option<ValueId>,
+) -> Result<usize> {
+    let sql = "
+INSERT OR IGNORE INTO file_tag (file_id, tag_id, value_id)
+VALUES (?1, ?2, ?3)";
+
+    // A value ID of 0 in the DB actually means no value...
+    let value_id = match value_id {
+        None => ValueId(0),
+        Some(id) => id,
+    };
+
+    let params = rusqlite::params![file_id, tag_id, value_id];
+    tx.execute_params(sql, params)
 }
 
 pub fn delete_file_tags_by_tag_id(tx: &mut Transaction, tag_id: &TagId) -> Result<usize> {
