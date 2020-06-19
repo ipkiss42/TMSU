@@ -3,6 +3,7 @@ mod info;
 mod init;
 mod merge;
 mod rename;
+mod values;
 
 use std::env;
 use std::path::PathBuf;
@@ -61,6 +62,7 @@ enum SubCommands {
     Init(init::InitOptions),
     Merge(merge::MergeOptions),
     Rename(rename::RenameOptions),
+    Values(values::ValuesOptions),
 }
 
 /// CLI entry point, dispatching to subcommands
@@ -73,6 +75,7 @@ pub fn run() -> Result<()> {
         SubCommands::Init(init_opts) => init_opts.execute(),
         SubCommands::Merge(merge_opts) => merge_opts.execute(&opt.global_opts),
         SubCommands::Rename(rename_opts) => rename_opts.execute(&opt.global_opts),
+        SubCommands::Values(values_opts) => values_opts.execute(&opt.global_opts),
     }
 }
 
@@ -186,6 +189,25 @@ fn generate_examples_inner(use_color: bool, examples: &[(&str, Option<&str>)]) -
         header_style.paint("EXAMPLES:"),
         formatted.join("\n")
     )
+}
+
+fn print_columns(strings: &[String]) {
+    // TODO: do proper column printing
+    if is_stdout_tty() {
+        println!("{}", strings.join("  "));
+    } else {
+        for s in strings {
+            println!("{}", s);
+        }
+    }
+}
+
+fn escape(string: String, chars: &[char]) -> String {
+    let mut res = string;
+    for chr in chars {
+        res = res.replace(*chr, &format!("\\{}", chr));
+    }
+    res
 }
 
 #[derive(Debug)]
