@@ -41,6 +41,15 @@ impl fmt::Display for ValueId {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FileId(pub u32);
+
+impl fmt::Display for FileId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 pub struct Tag {
     pub id: TagId,
     pub name: String,
@@ -49,6 +58,14 @@ pub struct Tag {
 pub struct Value {
     pub id: ValueId,
     pub name: String,
+}
+
+pub struct FileTag {
+    pub file_id: FileId,
+    pub tag_id: TagId,
+    pub value_id: Option<ValueId>,
+    pub explicit: bool,
+    pub implicit: bool,
 }
 
 pub struct TagFileCount {
