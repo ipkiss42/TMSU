@@ -59,3 +59,19 @@ WHERE id = ?";
         Err(e) => Err(e),
     }
 }
+
+pub fn delete_value(tx: &mut Transaction, value_id: &ValueId) -> Result<()> {
+    value_id.assert_non_zero("Bug: deleting a value with ID 0 is meaningless.");
+
+    let sql = "
+DELETE FROM value
+WHERE id = ?";
+
+    let params = rusqlite::params![value_id];
+    match tx.execute_params(sql, params) {
+        // Note: this is stricter than the Go version, which does not fail when no row is deleted
+        Ok(1) => Ok(()),
+        Ok(_) => Err("Expected exactly one row to be affected".into()),
+        Err(e) => Err(e),
+    }
+}

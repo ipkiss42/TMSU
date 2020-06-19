@@ -1,3 +1,4 @@
+mod delete;
 mod info;
 mod init;
 mod rename;
@@ -54,6 +55,7 @@ arg_enum! {
 
 #[derive(Debug, StructOpt)]
 enum SubCommands {
+    Delete(delete::DeleteOptions),
     Info(info::InfoOptions),
     Init(init::InitOptions),
     Rename(rename::RenameOptions),
@@ -64,6 +66,7 @@ pub fn run() -> Result<()> {
     let opt = TmsuOptions::from_args();
 
     match opt.cmd {
+        SubCommands::Delete(delete_opts) => delete_opts.execute(&opt.global_opts),
         SubCommands::Info(info_opts) => info_opts.execute(&opt.global_opts),
         SubCommands::Init(init_opts) => init_opts.execute(),
         SubCommands::Rename(rename_opts) => rename_opts.execute(&opt.global_opts),
@@ -210,6 +213,10 @@ impl str::FromStr for TagOrValueName {
 
         Ok(TagOrValueName { name })
     }
+}
+
+fn extract_names(parsed_names: &[TagOrValueName]) -> Vec<&str> {
+    parsed_names.iter().map(|tovn| &tovn.name as &str).collect()
 }
 
 #[cfg(test)]

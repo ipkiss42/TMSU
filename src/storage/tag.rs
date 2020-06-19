@@ -58,6 +58,20 @@ WHERE id = ?";
     }
 }
 
+pub fn delete_tag(tx: &mut Transaction, tag_id: &TagId) -> Result<()> {
+    let sql = "
+DELETE FROM tag
+WHERE id = ?";
+
+    let params = rusqlite::params![tag_id];
+    match tx.execute_params(sql, params) {
+        // Note: this is stricter than the Go version, which does not fail when no row is deleted
+        Ok(1) => Ok(()),
+        Ok(_) => Err("Expected exactly one row to be affected".into()),
+        Err(e) => Err(e),
+    }
+}
+
 /// Retrieve the usage (file count) of each tag
 pub fn tag_usage(tx: &mut Transaction) -> Result<Vec<TagFileCount>> {
     let sql = "
