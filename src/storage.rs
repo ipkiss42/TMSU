@@ -246,3 +246,54 @@ impl rusqlite::ToSql for FileId {
         self.0.to_sql()
     }
 }
+
+type BoxedToSql = Box<dyn rusqlite::ToSql>;
+
+struct SqlBuilder<'a> {
+    sql_parts: Vec<&'a str>,
+    params: Vec<BoxedToSql>,
+    needs_param_comma: bool,
+}
+
+impl<'a> SqlBuilder<'a> {
+    pub fn new() -> Self {
+        Self {
+            sql_parts: Vec::new(),
+            params: Vec::new(),
+            needs_param_comma: false,
+        }
+    }
+
+    pub fn append_sql(&mut self, sql: &'a str) {
+        match sql.chars().next() {
+            None => return, // Empty string
+            Some(chr) => match chr {
+                ' ' | '\n' => (),
+                _ => self.sql_parts.push("\n"),
+            },
+        };
+
+        self.sql_parts.push(sql);
+
+        self.needs_param_comma = false;
+    }
+
+    pub fn append_param(&mut self, param: impl rusqlite::ToSql + 'static) {
+        if self.needs_param_comma {
+            self.sql_parts.push(",");
+        }
+
+        self.sql_parts.push("?");
+
+        self.params.push(Box::new(param));
+        self.needs_param_comma = true;
+    }
+
+    pub fn sql(&self) -> String {
+        self.sql_parts.concat()
+    }
+
+    pub fn params(self) -> impl IntoIterator<Item = BoxedToSql> {
+        self.params
+    }
+}

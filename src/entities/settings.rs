@@ -148,15 +148,15 @@ impl Settings {
         }
     }
 
+    pub fn auto_create_tags(&self) -> bool {
+        self.get(Self::AUTO_CREATE_TAGS).unwrap().as_bool()
+    }
+
+    pub fn auto_create_values(&self) -> bool {
+        self.get(Self::AUTO_CREATE_VALUES).unwrap().as_bool()
+    }
+
     /* Hide these methods until they get used, to avoid "unused" warnings
-
-        pub fn auto_create_tags(&self) -> bool {
-            self.get(Self::AUTO_CREATE_TAGS).unwrap().as_bool()
-        }
-
-        pub fn auto_create_values(&self) -> bool {
-            self.get(Self::AUTO_CREATE_VALUES).unwrap().as_bool()
-        }
 
         pub fn directory_fingerprint_algorithm(&self) -> String {
             self.get(Self::DIRECTORY_FINGERPRINT_ALGORITHM).unwrap().as_str()

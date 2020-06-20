@@ -52,11 +52,13 @@ impl fmt::Display for FileId {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Tag {
     pub id: TagId,
     pub name: String,
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Value {
     pub id: ValueId,
     pub name: String,
@@ -74,6 +76,20 @@ pub struct TagFileCount {
     pub id: TagId,
     pub name: String,
     pub file_count: u32,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct Implication {
+    pub implying_tag: Tag,
+    pub implying_value: Option<Value>,
+    pub implied_tag: Tag,
+    pub implied_value: Option<Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TagIdValueIdPair {
+    pub tag_id: TagId,
+    pub value_id: Option<ValueId>,
 }
 
 pub fn validate_tag_name(name: &str) -> Result<()> {
