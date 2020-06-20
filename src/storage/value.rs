@@ -66,6 +66,21 @@ fn parse_value(row: Row) -> Result<Value> {
     })
 }
 
+pub fn insert_value(tx: &mut Transaction, name: &str) -> Result<Value> {
+    let sql = "
+INSERT INTO value (name)
+VALUES (?)";
+
+    let params = rusqlite::params![name];
+    tx.execute_params(sql, params)?;
+
+    let last_id = tx.last_inserted_row_id();
+    Ok(Value {
+        id: ValueId(last_id),
+        name: name.to_owned(),
+    })
+}
+
 pub fn rename_value(tx: &mut Transaction, value_id: &ValueId, name: &str) -> Result<()> {
     value_id.assert_non_zero("Bug: renaming a value with ID 0 is meaningless.");
 

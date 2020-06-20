@@ -1,6 +1,7 @@
 mod config;
 mod copy;
 mod delete;
+mod imply;
 mod info;
 mod init;
 mod merge;
@@ -62,6 +63,7 @@ enum SubCommands {
     Config(config::ConfigOptions),
     Copy(copy::CopyOptions),
     Delete(delete::DeleteOptions),
+    Imply(imply::ImplyOptions),
     Info(info::InfoOptions),
     Init(init::InitOptions),
     Merge(merge::MergeOptions),
@@ -77,6 +79,7 @@ pub fn run() -> Result<()> {
         SubCommands::Config(config_opts) => config_opts.execute(&opt.global_opts),
         SubCommands::Copy(copy_opts) => copy_opts.execute(&opt.global_opts),
         SubCommands::Delete(delete_opts) => delete_opts.execute(&opt.global_opts),
+        SubCommands::Imply(imply_opts) => imply_opts.execute(&opt.global_opts),
         SubCommands::Info(info_opts) => info_opts.execute(&opt.global_opts),
         SubCommands::Init(init_opts) => init_opts.execute(),
         SubCommands::Merge(merge_opts) => merge_opts.execute(&opt.global_opts),
@@ -242,6 +245,61 @@ fn extract_names(parsed_names: &[TagOrValueName]) -> Vec<&str> {
     parsed_names.iter().map(|tovn| &tovn.name as &str).collect()
 }
 
+#[derive(Debug)]
+struct TagAndValueNames {
+    tag_name: String,
+    value_name: Option<String>,
+}
+
+// Allow automatic parsing in StructOpt
+impl str::FromStr for TagAndValueNames {
+    type Err = Error;
+
+    fn from_str(raw: &str) -> result::Result<Self, Self::Err> {
+        let mut tag_name = String::with_capacity(raw.len());
+        let mut value_name = String::with_capacity(raw.len());
+        let mut name = &mut tag_name;
+
+        // The borrow checker makes it hard to check whether "name" points to "tag_name" or
+        // "value_name", so introduce an extra boolean
+        let mut updating_tag = true;
+
+        let mut escaped = false;
+        for chr in raw.chars() {
+            if escaped {
+                escaped = false;
+                (*name).push(chr);
+                continue;
+            }
+
+            match chr {
+                '\\' => escaped = true,
+                '=' => {
+                    if updating_tag {
+                        name = &mut value_name;
+                        updating_tag = false;
+                    } else {
+                        name.push(chr);
+                    }
+                }
+                _ => name.push(chr),
+            };
+        }
+
+        if tag_name.is_empty() {
+            return Err("a tag name cannot be empty".into());
+        }
+
+        Ok(TagAndValueNames {
+            tag_name,
+            value_name: match &value_name as &str {
+                "" => None,
+                _ => Some(value_name),
+            },
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,5 +364,28 @@ mod tests {
         assert_parse(r"\\\a\ or \(b =\= c)", r"\a or (b == c)");
         // TODO: similar to Go, but should perhaps be disallowed
         assert_parse(r"trailing\", "trailing");
+    }
+
+    #[test]
+    fn parse_tag_and_value_names() {
+        // Helper function to remove some boilerplate
+        fn assert_parse(raw: &str, expected_tag_name: &str, expected_value_name: Option<&str>) {
+            let parsed = TagAndValueNames::from_str(raw).unwrap();
+            assert_eq!(parsed.tag_name, expected_tag_name);
+            assert_eq!(parsed.value_name, expected_value_name.map(|s| s.to_owned()));
+        }
+
+        assert_parse(r"abc", "abc", None);
+        assert_parse(r"abc=", "abc", None);
+        assert_parse(r"abc\=", "abc=", None);
+        assert_parse(r"a b=c d", "a b", Some("c d"));
+        assert_parse(r"t=v1=v2", "t", Some("v1=v2"));
+        assert_parse(r"\===", "=", Some("="));
+        assert_parse(r"\t\\1\=t2=v1\=\v2", r"t\1=t2", Some("v1=v2"));
+        // TODO: similar to Go, but should perhaps be disallowed
+        assert_parse(r"tag=trailing\", "tag", Some("trailing"));
+
+        // Tag names are mandatory
+        assert!(TagAndValueNames::from_str("=abc").is_err());
     }
 }
