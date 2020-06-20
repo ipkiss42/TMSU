@@ -1,3 +1,4 @@
+pub mod copy;
 pub mod delete;
 pub mod info;
 pub mod init;

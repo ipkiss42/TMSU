@@ -167,6 +167,10 @@ FROM {}",
         let value: u32 = self.tx.query_row(&sql, Self::NO_PARAMS, |row| row.get(0))?;
         Ok(value as u64)
     }
+
+    fn last_inserted_row_id(&mut self) -> u32 {
+        self.tx.last_insert_rowid() as u32
+    }
 }
 
 /// Generate a string such as "?,?,?", with as many placeholders ('?') as requested

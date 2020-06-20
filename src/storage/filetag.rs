@@ -81,3 +81,18 @@ WHERE value_id = ?";
     let params = rusqlite::params![value_id];
     tx.execute_params(sql, params)
 }
+
+pub fn copy_file_tags(
+    tx: &mut Transaction,
+    src_tag_id: &TagId,
+    dest_tag_id: &TagId,
+) -> Result<usize> {
+    let sql = "
+INSERT INTO file_tag (file_id, tag_id, value_id)
+SELECT file_id, ?2, value_id
+FROM file_tag
+WHERE tag_id = ?1";
+
+    let params = rusqlite::params![src_tag_id, dest_tag_id];
+    tx.execute_params(sql, params)
+}
