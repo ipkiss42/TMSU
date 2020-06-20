@@ -44,6 +44,21 @@ pub fn tag_by_name(tx: &mut Transaction, name: &str) -> Result<Option<Tag>> {
     Ok(results.into_iter().next())
 }
 
+pub fn insert_tag(tx: &mut Transaction, name: &str) -> Result<Tag> {
+    let sql = "
+INSERT INTO tag (name)
+VALUES (?)";
+
+    let params = rusqlite::params![name];
+    tx.execute_params(sql, params)?;
+
+    let tag_id = tx.last_inserted_row_id();
+    Ok(Tag {
+        id: TagId(tag_id),
+        name: name.to_owned(),
+    })
+}
+
 pub fn rename_tag(tx: &mut Transaction, tag_id: &TagId, name: &str) -> Result<()> {
     let sql = "
 UPDATE tag

@@ -1,3 +1,4 @@
+mod copy;
 mod delete;
 mod info;
 mod init;
@@ -57,6 +58,7 @@ arg_enum! {
 
 #[derive(Debug, StructOpt)]
 enum SubCommands {
+    Copy(copy::CopyOptions),
     Delete(delete::DeleteOptions),
     Info(info::InfoOptions),
     Init(init::InitOptions),
@@ -70,6 +72,7 @@ pub fn run() -> Result<()> {
     let opt = TmsuOptions::from_args();
 
     match opt.cmd {
+        SubCommands::Copy(copy_opts) => copy_opts.execute(&opt.global_opts),
         SubCommands::Delete(delete_opts) => delete_opts.execute(&opt.global_opts),
         SubCommands::Info(info_opts) => info_opts.execute(&opt.global_opts),
         SubCommands::Init(init_opts) => init_opts.execute(),
