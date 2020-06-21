@@ -1,3 +1,5 @@
+pub mod settings;
+
 use std::fmt;
 
 use lazy_static::lazy_static;

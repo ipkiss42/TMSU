@@ -2,6 +2,7 @@ pub mod file;
 pub mod filetag;
 pub mod implication;
 mod schema;
+pub mod setting;
 pub mod tag;
 mod upgrade;
 pub mod value;
