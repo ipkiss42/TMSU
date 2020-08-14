@@ -33,6 +33,18 @@ WHERE name IN ({})",
     tx.query_vec_params(&sql, &params, parse_value)
 }
 
+pub fn value_by_id(tx: &mut Transaction, value_id: &ValueId) -> Result<Option<Value>> {
+    value_id.assert_non_zero("Bug: searching values with a value ID of 0 is meaningless.");
+
+    let sql = "
+SELECT id, name
+FROM value
+WHERE id = ?";
+
+    let params = rusqlite::params![value_id];
+    tx.query_single_params(sql, params, parse_value)
+}
+
 pub fn value_by_name(tx: &mut Transaction, name: &str) -> Result<Option<Value>> {
     // TODO: figure out why this is needed and if name should be Option<&str> instead
     if name == "" {

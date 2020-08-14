@@ -28,6 +28,16 @@ WHERE value_id = ?1";
     tx.query_vec_params(sql, params, parse_file_tag)
 }
 
+pub fn file_tags_by_file_id(tx: &mut Transaction, file_id: &FileId) -> Result<Vec<FileTag>> {
+    let sql = "
+SELECT file_id, tag_id, value_id
+FROM file_tag
+WHERE file_id = ?1";
+
+    let params = rusqlite::params![file_id];
+    tx.query_vec_params(sql, params, parse_file_tag)
+}
+
 fn parse_file_tag(row: Row) -> Result<FileTag> {
     Ok(FileTag {
         file_id: row.get(0)?,

@@ -6,6 +6,25 @@ pub fn tag_count(tx: &mut Transaction) -> Result<u64> {
     tx.count_from_table("tag")
 }
 
+pub fn tags(tx: &mut Transaction) -> Result<Vec<Tag>> {
+    let sql = "
+SELECT id, name
+FROM tag
+ORDER BY name";
+
+    tx.query_vec(sql, parse_tag)
+}
+
+pub fn tag_by_id(tx: &mut Transaction, tag_id: &TagId) -> Result<Option<Tag>> {
+    let sql = "
+SELECT id, name
+FROM tag
+WHERE id = ?";
+
+    let params = rusqlite::params![tag_id];
+    tx.query_single_params(sql, params, parse_tag)
+}
+
 pub fn tags_by_names(tx: &mut Transaction, names: &[&str]) -> Result<Vec<Tag>> {
     if names.is_empty() {
         return Ok(vec![]);
@@ -21,13 +40,6 @@ WHERE name IN ({})",
         &placeholders
     );
 
-    fn parse_tag(row: Row) -> Result<Tag> {
-        Ok(Tag {
-            id: row.get(0)?,
-            name: row.get(1)?,
-        })
-    }
-
     tx.query_vec_params(&sql, &params, parse_tag)
 }
 
@@ -42,6 +54,13 @@ pub fn tag_by_name(tx: &mut Transaction, name: &str) -> Result<Option<Tag>> {
 
     let results = tags_by_names(tx, &[name])?;
     Ok(results.into_iter().next())
+}
+
+fn parse_tag(row: Row) -> Result<Tag> {
+    Ok(Tag {
+        id: row.get(0)?,
+        name: row.get(1)?,
+    })
 }
 
 pub fn insert_tag(tx: &mut Transaction, name: &str) -> Result<Tag> {

@@ -14,7 +14,9 @@ error_chain! {
         }
     }
     foreign_links {
+        Chrono(chrono::ParseError);
         Io(std::io::Error);
+        StripPrefix(std::path::StripPrefixError);
         Rusqlite(rusqlite::Error);
     }
 }

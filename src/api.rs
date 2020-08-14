@@ -6,6 +6,7 @@ pub mod info;
 pub mod init;
 pub mod merge;
 pub mod rename;
+pub mod tags;
 pub mod values;
 
 use error_chain::ensure;

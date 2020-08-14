@@ -7,15 +7,17 @@ pub mod tag;
 mod upgrade;
 pub mod value;
 
+use std::ffi::OsStr;
 use std::iter;
 use std::path::{Path, PathBuf};
 
+use crate::entities::path::CanonicalPath;
 use crate::entities::{FileId, TagId, ValueId};
 use crate::errors::*;
 
 pub struct Storage {
-    pub db_path: PathBuf,
-    pub root_path: PathBuf,
+    pub db_path: CanonicalPath,
+    pub root_path: CanonicalPath,
     conn: rusqlite::Connection,
 }
 
@@ -43,8 +45,8 @@ impl Storage {
             .map_err(|_| ErrorKind::NoDatabaseFound(db_path.to_path_buf()))?;
 
         let mut res = Storage {
-            root_path: determine_root_path(&db_path)?,
-            db_path,
+            root_path: CanonicalPath::new(determine_root_path(&db_path)?)?,
+            db_path: CanonicalPath::new(db_path)?,
             conn,
         };
 
@@ -151,8 +153,20 @@ impl<'a> Transaction<'a> {
     where
         F: FnOnce(Row<'_>) -> Result<T>,
     {
+        self.query_single_params(sql, Self::NO_PARAMS, f)
+    }
+
+    fn query_single_params<T, F>(
+        &mut self,
+        sql: &str,
+        params: &[&dyn rusqlite::ToSql],
+        f: F,
+    ) -> Result<Option<T>>
+    where
+        F: FnOnce(Row<'_>) -> Result<T>,
+    {
         let mut stmt = self.tx.prepare(sql)?;
-        let mut rows = stmt.query(Self::NO_PARAMS)?;
+        let mut rows = stmt.query(params)?;
 
         rows.next()?.map(|r| Row::new(r)).map(f).transpose()
     }
@@ -188,6 +202,14 @@ fn generate_placeholders<'a>(values: &'a [&str]) -> Result<(String, Vec<&'a dyn 
     Ok((placeholders.join(","), params))
 }
 
+/// Convert an OsStr into a string. Note that this conversion can fail.
+/// TODO: does this really work on Windows? If not, what to do instead?
+fn os_to_str(path: &OsStr) -> Result<&str> {
+    Ok(path
+        .to_str()
+        .ok_or_else(|| Error::from("Cannot convert to str"))?)
+}
+
 /// Simple wrapper around a rusqlite::Row, mostly to avoid explicit error conversions in callbacks.
 /// It's not clear whether this is really worth it...
 struct Row<'a>(&'a rusqlite::Row<'a>);
@@ -207,6 +229,12 @@ impl<'a> Row<'a> {
         T: rusqlite::types::FromSql,
     {
         Ok(self.0.get(index)?)
+    }
+
+    fn get_usize<I: rusqlite::RowIndex>(&self, index: I) -> Result<usize> {
+        let tmp: i64 = self.0.get(index)?;
+        // Force cast to usize: we don't expect negative values
+        Ok(tmp as usize)
     }
 }
 
