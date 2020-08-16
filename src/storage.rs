@@ -5,9 +5,10 @@ pub mod tag;
 mod upgrade;
 pub mod value;
 
+use std::iter;
 use std::path::{Path, PathBuf};
 
-use crate::entities::TagId;
+use crate::entities::{TagId, ValueId};
 use crate::errors::*;
 
 pub struct Storage {
@@ -168,6 +169,20 @@ FROM {}",
     }
 }
 
+/// Generate a string such as "?,?,?", with as many placeholders ('?') as requested
+fn generate_placeholders<'a>(values: &'a [&str]) -> Result<(String, Vec<&'a dyn rusqlite::ToSql>)> {
+    error_chain::ensure!(!values.is_empty(), "Bug: expected at least one placeholder");
+    let placeholders: Vec<_> = iter::repeat("?").take(values.len()).collect();
+    placeholders.join(",");
+
+    let mut params = Vec::with_capacity(values.len());
+    for value in values {
+        params.push(value as &dyn rusqlite::ToSql);
+    }
+
+    Ok((placeholders.join(","), params))
+}
+
 /// Simple wrapper around a rusqlite::Row, mostly to avoid explicit error conversions in callbacks.
 /// It's not clear whether this is really worth it...
 struct Row<'a>(&'a rusqlite::Row<'a>);
@@ -197,6 +212,18 @@ impl rusqlite::types::FromSql for TagId {
 }
 
 impl rusqlite::ToSql for TagId {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        self.0.to_sql()
+    }
+}
+
+impl rusqlite::types::FromSql for ValueId {
+    fn column_result(value: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        u32::column_result(value).map(ValueId)
+    }
+}
+
+impl rusqlite::ToSql for ValueId {
     fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
         self.0.to_sql()
     }
