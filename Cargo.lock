@@ -518,7 +518,9 @@ dependencies = [
  "dirs",
  "env_logger",
  "error-chain",
+ "lazy_static",
  "log",
+ "regex",
  "rusqlite",
  "structopt",
 ]

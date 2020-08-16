@@ -1,9 +1,61 @@
-use crate::entities::TagFileCount;
+use crate::entities::{Tag, TagFileCount, TagId};
 use crate::errors::*;
-use crate::storage::{Row, Transaction};
+use crate::storage::{self, Row, Transaction};
 
 pub fn tag_count(tx: &mut Transaction) -> Result<u64> {
     tx.count_from_table("tag")
+}
+
+pub fn tags_by_names(tx: &mut Transaction, names: &[&str]) -> Result<Vec<Tag>> {
+    if names.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let (placeholders, params) = storage::generate_placeholders(names)?;
+
+    let sql = format!(
+        "
+SELECT id, name
+FROM tag
+WHERE name IN ({})",
+        &placeholders
+    );
+
+    fn parse_tag(row: Row) -> Result<Tag> {
+        Ok(Tag {
+            id: row.get(0)?,
+            name: row.get(1)?,
+        })
+    }
+
+    tx.query_vec_params(&sql, &params, parse_tag)
+}
+
+pub fn tag_by_name(tx: &mut Transaction, name: &str) -> Result<Option<Tag>> {
+    // TODO: figure out why this is needed and if name should be Option<&str> instead
+    if name == "" {
+        return Ok(Some(Tag {
+            id: TagId(0),
+            name: "".to_owned(),
+        }));
+    }
+
+    let results = tags_by_names(tx, &[name])?;
+    Ok(results.into_iter().next())
+}
+
+pub fn rename_tag(tx: &mut Transaction, tag_id: &TagId, name: &str) -> Result<()> {
+    let sql = "
+UPDATE tag
+SET name = ?
+WHERE id = ?";
+
+    let params = rusqlite::params![name, tag_id];
+    match tx.execute_params(sql, params) {
+        Ok(1) => Ok(()),
+        Ok(_) => Err("Expected exactly one row to be affected".into()),
+        Err(e) => Err(e),
+    }
 }
 
 /// Retrieve the usage (file count) of each tag

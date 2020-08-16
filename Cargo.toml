@@ -24,6 +24,8 @@ env_logger = "0.7.1"
 log = "0.4.11"
 dirs = "3.0.1"
 error-chain = "0.12.4"
+lazy_static = "1.4.0"
+regex = "1.3.9"
 
 # DB
 rusqlite = "0.24.0"

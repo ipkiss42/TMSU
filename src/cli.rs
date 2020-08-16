@@ -1,11 +1,15 @@
 mod info;
 mod init;
+mod rename;
 
 use std::env;
 use std::path::PathBuf;
 use std::process;
+use std::result;
 use std::str;
+use std::string;
 
+use ansi_term::Colour;
 use clap::arg_enum;
 use clap::AppSettings::{ColoredHelp, UnifiedHelpMessage};
 use structopt::StructOpt;
@@ -52,6 +56,7 @@ arg_enum! {
 enum SubCommands {
     Info(info::InfoOptions),
     Init(init::InitOptions),
+    Rename(rename::RenameOptions),
 }
 
 /// CLI entry point, dispatching to subcommands
@@ -61,6 +66,7 @@ pub fn run() -> Result<()> {
     match opt.cmd {
         SubCommands::Info(info_opts) => info_opts.execute(&opt.global_opts),
         SubCommands::Init(init_opts) => init_opts.execute(),
+        SubCommands::Rename(rename_opts) => rename_opts.execute(&opt.global_opts),
     }
 }
 
@@ -137,5 +143,138 @@ pub fn print_error(result: Result<()>) {
         }
 
         process::exit(1);
+    }
+}
+
+fn generate_examples(examples: &[(&str, Option<&str>)]) -> String {
+    // Simple indirection to make testing easier
+    generate_examples_inner(is_stdout_tty(), examples)
+}
+
+fn generate_examples_inner(use_color: bool, examples: &[(&str, Option<&str>)]) -> String {
+    // Define styles
+    let header_style;
+    let prompt_style;
+    if use_color {
+        header_style = Colour::Yellow.normal();
+        prompt_style = Colour::Green.normal();
+    } else {
+        header_style = ansi_term::Style::default();
+        prompt_style = ansi_term::Style::default();
+    }
+
+    let prompt = prompt_style.paint("$");
+
+    let formatted: Vec<_> = examples
+        .iter()
+        .map(|(cmd_line, output)| {
+            let output_str = match output {
+                Some(s) => format!("\n    {}", s.replace("\n", "\n    ")),
+                None => "".to_string(),
+            };
+            format!("    {} {}{}", prompt, cmd_line, output_str)
+        })
+        .collect();
+    format!(
+        "{}\n{}",
+        header_style.paint("EXAMPLES:"),
+        formatted.join("\n")
+    )
+}
+
+#[derive(Debug)]
+struct TagOrValueName {
+    name: String,
+}
+
+// Allow automatic parsing in StructOpt
+impl str::FromStr for TagOrValueName {
+    type Err = string::ParseError;
+
+    fn from_str(raw: &str) -> result::Result<Self, Self::Err> {
+        let mut name = String::with_capacity(raw.len());
+
+        let mut escaped = false;
+        for chr in raw.chars() {
+            if escaped {
+                escaped = false;
+                name.push(chr);
+                continue;
+            }
+
+            match chr {
+                '\\' => escaped = true,
+                _ => name.push(chr),
+            };
+        }
+
+        Ok(TagOrValueName { name })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn gen_examples() {
+        // Single example without output
+        assert_eq!(
+            generate_examples_inner(false, &[("hello", None)]),
+            "EXAMPLES:
+    $ hello"
+        );
+
+        // Single example with multi-line output
+        assert_eq!(
+            generate_examples_inner(
+                false,
+                &[("command", Some("this is some\nmulti-line output"))]
+            ),
+            "EXAMPLES:
+    $ command
+    this is some
+    multi-line output"
+        );
+
+        // Mixing examples with and without output
+        assert_eq!(
+            generate_examples_inner(
+                false,
+                &[
+                    ("mkdir tmp-dir", None),
+                    ("cd tmp-dir", None),
+                    ("tmsu init", Some("tmsu: /tmp/tmp-dir: creating database"))
+                ]
+            ),
+            "EXAMPLES:
+    $ mkdir tmp-dir
+    $ cd tmp-dir
+    $ tmsu init
+    tmsu: /tmp/tmp-dir: creating database"
+        );
+
+        // With colors
+        assert_eq!(
+            generate_examples_inner(true, &[("hello", None)]),
+            "\u{1b}[33mEXAMPLES:\u{1b}[0m
+    \u{1b}[32m$\u{1b}[0m hello"
+        );
+    }
+
+    #[test]
+    fn parse_tag_or_value_name() {
+        // Helper function to remove some boilerplate
+        fn assert_parse(raw: &str, expected_tag_name: &str) {
+            let parsed = TagOrValueName::from_str(raw).unwrap();
+            assert_eq!(parsed.name, expected_tag_name);
+        }
+
+        assert_parse(r"abc", "abc");
+        assert_parse(r"a or (b == c)", "a or (b == c)");
+        assert_parse(r"\\\a\ or \(b =\= c)", r"\a or (b == c)");
+        // TODO: similar to Go, but should perhaps be disallowed
+        assert_parse(r"trailing\", "trailing");
     }
 }
