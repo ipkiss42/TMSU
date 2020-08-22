@@ -119,9 +119,9 @@ fn is_symlink(path: &Path) -> bool {
 /// See the documentation of `new()` for more details.
 #[derive(Debug)]
 pub struct ScopedPath {
-    // TODO: the `base` field is not really used after construction
     base: Rc<CanonicalPath>,
     inner: PathBuf,
+    absolute: PathBuf,
 }
 
 impl ScopedPath {
@@ -131,6 +131,16 @@ impl ScopedPath {
     ///
     /// The given `path` can be either relative or absolute. If relative, it is assumed to be
     /// relative to `base`, not to the current directory.
+    ///
+    /// E.g.:
+    /// ```rust
+    /// let base = Rc::new(CanonicalPath::new("/foo/bar").unwrap());
+    /// assert_eq!(ScopedPath::new(base.clone(), "baz").unwrap().inner, &Path::new("baz"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "/tmp/foo/bar/baz").unwrap().inner, &Path::new("baz"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "../baz").unwrap().inner, &Path::new("/tmp/foo/baz"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "/tmp/foo").unwrap().inner, &Path::new("/tmp/foo"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "./baz/.././dummy/../").unwrap().inner, &Path::new("."));
+    /// ```
     pub fn new<P: AsRef<Path>>(base: Rc<CanonicalPath>, path: P) -> Result<Self> {
         assert!(base.is_dir(), "The base must be a directory");
 
@@ -176,7 +186,11 @@ impl ScopedPath {
             inner = PathBuf::from(".");
         }
 
-        Ok(ScopedPath { base, inner })
+        Ok(ScopedPath {
+            base,
+            inner,
+            absolute: abs_path.0,
+        })
     }
 
     /// Extract and return the base (parent directory) and name from the "inner" portion (which
@@ -210,6 +224,15 @@ impl ScopedPath {
         };
 
         (base.as_os_str().to_owned(), name.to_owned())
+    }
+}
+
+// Make all the `Path` methods available on ScopedPath
+impl ops::Deref for ScopedPath {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.absolute
     }
 }
 
@@ -339,5 +362,20 @@ mod tests {
         // Special cases
         assert_dir_name(".", ".", ".");
         assert_dir_name("/", "/", "/");
+    }
+
+    #[test]
+    fn test_deref() {
+        fn assert_deref(inner: &str, expected_path: &Path) {
+            let path_ref: &Path = &ScopedPath::new(create_base(), inner).unwrap();
+            assert_eq!(path_ref, expected_path);
+        }
+
+        // Relative paths
+        assert_deref("foo", &join!(TESTS_ROOT, "foo"));
+
+        // Absolute paths
+        fs::create_dir_all("/tmp/foo").unwrap();
+        assert_deref("/tmp/foo", &PathBuf::from("/tmp/foo"));
     }
 }

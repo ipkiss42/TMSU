@@ -7,10 +7,11 @@ mod init;
 mod merge;
 mod rename;
 mod tags;
+mod untagged;
 mod values;
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process;
 use std::result;
 use std::str;
@@ -70,6 +71,7 @@ enum SubCommands {
     Merge(merge::MergeOptions),
     Rename(rename::RenameOptions),
     Tags(tags::TagsOptions),
+    Untagged(untagged::UntaggedOptions),
     Values(values::ValuesOptions),
 }
 
@@ -87,6 +89,7 @@ pub fn run() -> Result<()> {
         SubCommands::Merge(merge_opts) => merge_opts.execute(&opt.global_opts),
         SubCommands::Rename(rename_opts) => rename_opts.execute(&opt.global_opts),
         SubCommands::Tags(tags_opts) => tags_opts.execute(&opt.global_opts),
+        SubCommands::Untagged(untagged_opts) => untagged_opts.execute(&opt.global_opts),
         SubCommands::Values(values_opts) => values_opts.execute(&opt.global_opts),
     }
 }
@@ -165,6 +168,44 @@ pub fn print_error(result: Result<()>) {
 
         process::exit(1);
     }
+}
+
+pub fn rel_to<P: AsRef<Path>, Q: AsRef<Path>>(path: P, base: Q) -> PathBuf {
+    let path = path.as_ref();
+    let base = base.as_ref();
+
+    // Sanity checks
+    assert!(
+        base.is_dir(),
+        "Bug: expected the base to be a directory: '{}'",
+        base.display()
+    );
+    assert!(
+        base.is_absolute(),
+        "Bug: expected an absolute base but got '{}'",
+        base.display()
+    );
+    assert!(
+        path.is_absolute(),
+        "Bug: expected an absolute path but got '{}'",
+        path.display()
+    );
+
+    let final_path = match path.strip_prefix(base) {
+        // XXX: the extra "./" prefix is copied from the Go implementation. Should we get rid of it?
+        Ok(p) => PathBuf::from(".").join(p),
+        // TODO: get rid of this special handling?
+        Err(_) => match base.parent() {
+            None => path.to_path_buf(),
+            Some(base_parent) => match path.strip_prefix(base_parent) {
+                // XXX: the extra "../" prefix is copied from the Go implementation. Should we get
+                // rid of it?
+                Ok(p) => PathBuf::from("..").join(p),
+                Err(_) => path.to_path_buf(),
+            },
+        },
+    };
+    final_path
 }
 
 fn generate_examples(examples: &[(&str, Option<&str>)]) -> String {
