@@ -1,15 +1,35 @@
-extern crate clap;
+#[macro_use]
+extern crate log;
 
-use clap::{App, AppSettings, Arg, SubCommand};
+use std::env;
+use std::io::Write;
+
+use env_logger::Env;
+
+mod api;
+mod cli;
+mod errors;
+mod storage;
 
 fn main() {
-    let matches = App::new("TMSU").version("1.0.0")
-                                  .template("{bin}\n\n{subcommands}\n\nGlobal options:\n\n{flags}\n\n{after-help}")
-                                  .after_help("Specify subcommand name for detailed help on a particular subcommand, e.g. tmsu help files")
-                                  .arg(Arg::with_name("verbose").short("v")
-                                                                .long("verbose")
-                                                                .help("Show verbose messages"))
-                                  .subcommand(SubCommand::with_name("config").about("Views or amends database sesttings"))
-                                  .subcommand(SubCommand::with_name("files").about("Lists files with particular tags"))
-                                  .get_matches();
+    initialize_logging();
+
+    // Parse CLI args and dispatch to the right subcommand
+    let result = cli::run();
+
+    // If there is an error, print it and exit with a non-zero error code
+    cli::print_error(result);
+}
+
+fn initialize_logging() {
+    // If the RUST_LOG environment variable is defined, respect it and use the default formatter.
+    // Otherwise fallback onto "warn" level and a minimalistic formatter, to allow outputting
+    // warnings on the console.
+    if env::var("RUST_LOG").is_err() {
+        env_logger::from_env(Env::default().default_filter_or("tmsu=warn"))
+            .format(|buf, record| writeln!(buf, "tmsu: {}", record.args()))
+            .init();
+    } else {
+        env_logger::init();
+    }
 }

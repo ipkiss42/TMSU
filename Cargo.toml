@@ -1,9 +1,29 @@
 [package]
 name = "tmsu"
-version = "0.1.0"
-authors = ["Paul Ruane <paul.ruane@oniony.com>"]
+version = "0.7.5-rust"
+authors = ["Paul Ruane <paul.ruane@oniony.com>", "Olivier Teulière <ipkiss@gmail.com>"]
+description = "TMSU lets you tag your files and then access them through a nifty virtual filesystem from any other application."
+license = "GPL3"
+repository = "https://github.com/oniony/TMSU"
+readme = "README.MD"
+documentation = "https://github.com/oniony/TMSU/wiki"
+keywords = ["tagging", "filesystem"]
+categories = ["command-line-utilities", "tagging", "filesystem"]
+edition = "2018"
 
-[dependencies.clap]
-version = "~2.27" 
-default-features = false
-features = [ "suggestions", "wrap_help" ]
+# TODO: try to use fewer features of dependencies when possible
+[dependencies]
+# CLI dependencies
+structopt = "0.3.17"
+clap = "2.33.3"
+ansi_term = "0.12.1"
+atty = "0.2.14"
+env_logger = "0.7.1"
+
+# Core lib dependencies
+log = "0.4.11"
+dirs = "3.0.1"
+error-chain = "0.12.4"
+
+# DB
+rusqlite = "0.24.0"
