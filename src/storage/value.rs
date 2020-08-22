@@ -1,6 +1,6 @@
 use crate::entities::{TagId, Value, ValueId};
 use crate::errors::*;
-use crate::storage::{self, Row, Transaction};
+use crate::storage::{self, collation_for, Row, Transaction};
 
 pub fn value_count(tx: &mut Transaction) -> Result<u64> {
     tx.count_from_table("value")
@@ -15,19 +15,24 @@ ORDER BY name";
     tx.query_vec(sql, parse_value)
 }
 
-pub fn values_by_names(tx: &mut Transaction, names: &[&str]) -> Result<Vec<Value>> {
+pub fn values_by_names(
+    tx: &mut Transaction,
+    names: &[&str],
+    ignore_case: bool,
+) -> Result<Vec<Value>> {
     if names.is_empty() {
         return Ok(vec![]);
     }
 
+    let collation = collation_for(ignore_case);
     let (placeholders, params) = storage::generate_placeholders(names)?;
 
     let sql = format!(
         "
 SELECT id, name
 FROM value
-WHERE name IN ({})",
-        &placeholders
+WHERE name {} IN ({})",
+        collation, &placeholders
     );
 
     tx.query_vec_params(&sql, &params, parse_value)
@@ -54,7 +59,7 @@ pub fn value_by_name(tx: &mut Transaction, name: &str) -> Result<Option<Value>> 
         }));
     }
 
-    let results = values_by_names(tx, &[name])?;
+    let results = values_by_names(tx, &[name], false)?;
     Ok(results.into_iter().next())
 }
 

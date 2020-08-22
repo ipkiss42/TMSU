@@ -11,7 +11,7 @@ use std::iter;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::entities::path::CanonicalPath;
+use crate::entities::path::{CanonicalPath, ScopedPath};
 use crate::entities::{FileId, TagId, ValueId};
 use crate::errors::*;
 
@@ -71,6 +71,15 @@ impl Storage {
 
         tx.commit()?;
         Ok(())
+    }
+
+    /// Return true iff the given path is a parent of (or identical to) the Store root
+    pub fn path_contains_root<P: AsRef<Path>>(&self, path: P) -> Result<bool> {
+        // Much simpler implementation than in Go, since we can leverage ScopedPath
+        // to do all the hard work (by inverting the usual base and path)
+        let canonical = CanonicalPath::new(path)?;
+        let scoped = ScopedPath::new(Rc::new(canonical), self.root_path.as_ref())?;
+        Ok(scoped.inner().is_relative())
     }
 }
 
@@ -203,7 +212,7 @@ fn generate_placeholders<'a>(values: &'a [&str]) -> Result<(String, Vec<&'a dyn 
     Ok((placeholders.join(","), params))
 }
 
-/// Convert an OsStr into a string. Note that this conversion can fail.
+/// Convert a path-like object into a string. Note that this conversion can fail.
 /// TODO: does this really work on Windows? If not, what to do instead?
 fn path_to_sql<'a, P: 'a + AsRef<Path>>(path: P) -> Result<String> {
     Ok(path
@@ -325,5 +334,12 @@ impl<'a> SqlBuilder<'a> {
 
     pub fn params(self) -> impl IntoIterator<Item = BoxedToSql> {
         self.params
+    }
+}
+
+fn collation_for(ignore_case: bool) -> &'static str {
+    match ignore_case {
+        true => " COLLATE NOCASE",
+        false => "",
     }
 }

@@ -12,6 +12,10 @@ error_chain! {
             description("Cannot open database")
             display("Cannot open database at '{}'", path.display())
         }
+        QueryParsingError(query: String) {
+            description("Cannot parse query")
+            display("Cannot parse query '{}'", &query)
+        }
     }
     foreign_links {
         Chrono(chrono::ParseError);

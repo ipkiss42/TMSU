@@ -10,6 +10,7 @@ mod api;
 mod cli;
 mod entities;
 mod errors;
+mod query;
 mod storage;
 
 fn main() {

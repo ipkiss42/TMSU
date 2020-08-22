@@ -1,6 +1,7 @@
 pub mod config;
 pub mod copy;
 pub mod delete;
+pub mod files;
 pub mod imply;
 pub mod info;
 pub mod init;

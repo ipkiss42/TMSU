@@ -116,6 +116,8 @@ fn is_symlink(path: &Path) -> bool {
 /// directory (possibly after cleaning up and resolving symlinks), then it is stored as a relative
 /// path (relative to `base`). Otherwise it is stored as an absolute, canonical path.
 ///
+/// This stored part, either relative or absolute, is accessible via the `inner()` method.
+///
 /// See the documentation of `new()` for more details.
 #[derive(Debug)]
 pub struct ScopedPath {
@@ -135,11 +137,11 @@ impl ScopedPath {
     /// E.g.:
     /// ```rust
     /// let base = Rc::new(CanonicalPath::new("/foo/bar").unwrap());
-    /// assert_eq!(ScopedPath::new(base.clone(), "baz").unwrap().inner, &Path::new("baz"));
-    /// assert_eq!(ScopedPath::new(base.clone(), "/tmp/foo/bar/baz").unwrap().inner, &Path::new("baz"));
-    /// assert_eq!(ScopedPath::new(base.clone(), "../baz").unwrap().inner, &Path::new("/tmp/foo/baz"));
-    /// assert_eq!(ScopedPath::new(base.clone(), "/tmp/foo").unwrap().inner, &Path::new("/tmp/foo"));
-    /// assert_eq!(ScopedPath::new(base.clone(), "./baz/.././dummy/../").unwrap().inner, &Path::new("."));
+    /// assert_eq!(ScopedPath::new(base.clone(), "baz").unwrap().inner(), &Path::new("baz"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "/tmp/foo/bar/baz").unwrap().inner(), &Path::new("baz"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "../baz").unwrap().inner(), &Path::new("/tmp/foo/baz"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "/tmp/foo").unwrap().inner(), &Path::new("/tmp/foo"));
+    /// assert_eq!(ScopedPath::new(base.clone(), "./baz/.././dummy/../").unwrap().inner(), &Path::new("."));
     /// ```
     pub fn new<P: AsRef<Path>>(base: Rc<CanonicalPath>, path: P) -> Result<Self> {
         assert!(base.is_dir(), "The base must be a directory");
@@ -225,6 +227,10 @@ impl ScopedPath {
 
         (base.as_os_str().to_owned(), name.to_owned())
     }
+
+    pub fn inner(&self) -> &Path {
+        &self.inner
+    }
 }
 
 // Make all the `Path` methods available on ScopedPath
@@ -236,10 +242,43 @@ impl ops::Deref for ScopedPath {
     }
 }
 
+pub trait CasedContains {
+    const CASE: bool = true;
+
+    /// Return true if and only if `self` contains the `to_find` string.
+    /// Matching can be done in a case insensitive way by setting `ignore_case` to `true`. Note that
+    /// the concept of case is not very well defined in UTF-8, so it is expected that some corner cases
+    /// will not be handled properly by implementations.
+    fn contains_for_case(&self, to_find: &str, ignore_case: bool) -> bool;
+}
+
+// Implement CasedContains for any collection, though we probably care only
+// about [T], &[T] and Vec<T> in practice
+impl<T: AsRef<str>, I> CasedContains for I
+where
+    for<'a> &'a I: IntoIterator<Item = &'a T>,
+{
+    fn contains_for_case(&self, to_find: &str, ignore_case: bool) -> bool {
+        let to_find = lowercase_or_owned(to_find, ignore_case);
+        self.into_iter()
+            .any(|s| to_find == lowercase_or_owned(s.as_ref(), ignore_case))
+    }
+}
+
+fn lowercase_or_owned(string: &str, ignore_case: bool) -> String {
+    if ignore_case {
+        string.to_lowercase()
+    } else {
+        string.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+
+    use crate::entities::{Tag, TagId, Value, ValueId};
 
     const TESTS_ROOT: &'static str = "/tmp/tmsu-tests";
 
@@ -377,5 +416,50 @@ mod tests {
         // Absolute paths
         fs::create_dir_all("/tmp/foo").unwrap();
         assert_deref("/tmp/foo", &PathBuf::from("/tmp/foo"));
+    }
+
+    #[test]
+    fn test_contains_for_case() {
+        let vec = vec!["a", "B", "bc", "Côté"];
+
+        // Not in vec, case sensitive
+        assert_eq!(false, vec.contains_for_case("bb", false));
+        assert_eq!(false, vec.contains_for_case("BB", false));
+
+        // Not in vec, case insensitive
+        assert_eq!(false, vec.contains_for_case("bb", true));
+        assert_eq!(false, vec.contains_for_case("BB", true));
+
+        // Present in vec, case sensitive
+        assert_eq!(false, vec.contains_for_case("b", false));
+        assert_eq!(true, vec.contains_for_case("B", false));
+        // Present in vec, case insensitive
+        assert_eq!(true, vec.contains_for_case("b", true));
+        assert_eq!(true, vec.contains_for_case("B", true));
+
+        // Non-ASCII, case sensitive
+        assert_eq!(false, vec.contains_for_case("CÔTÉ", false));
+        assert_eq!(true, vec.contains_for_case("Côté", false));
+
+        // Non-ASCII, case insensitive
+        assert_eq!(true, vec.contains_for_case("CÔTÉ", true));
+        assert_eq!(true, vec.contains_for_case("Côté", true));
+
+        // Array of owned strings
+        assert!(&["ab".to_string()].contains_for_case("ab", true));
+
+        // Array of tags
+        let tag = Tag {
+            id: TagId(42),
+            name: "ab".to_string(),
+        };
+        assert!(&[tag].contains_for_case("ab", false));
+
+        // Array of values
+        let value = Value {
+            id: ValueId(42),
+            name: "ab".to_string(),
+        };
+        assert!(&[value].contains_for_case("ab", false));
     }
 }

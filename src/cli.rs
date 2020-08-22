@@ -1,6 +1,7 @@
 mod config;
 mod copy;
 mod delete;
+mod files;
 mod imply;
 mod info;
 mod init;
@@ -65,6 +66,7 @@ enum SubCommands {
     Config(config::ConfigOptions),
     Copy(copy::CopyOptions),
     Delete(delete::DeleteOptions),
+    Files(files::FilesOptions),
     Imply(imply::ImplyOptions),
     Info(info::InfoOptions),
     Init(init::InitOptions),
@@ -83,6 +85,7 @@ pub fn run() -> Result<()> {
         SubCommands::Config(config_opts) => config_opts.execute(&opt.global_opts),
         SubCommands::Copy(copy_opts) => copy_opts.execute(&opt.global_opts),
         SubCommands::Delete(delete_opts) => delete_opts.execute(&opt.global_opts),
+        SubCommands::Files(files_opts) => files_opts.execute(&opt.global_opts),
         SubCommands::Imply(imply_opts) => imply_opts.execute(&opt.global_opts),
         SubCommands::Info(info_opts) => info_opts.execute(&opt.global_opts),
         SubCommands::Init(init_opts) => init_opts.execute(),
@@ -217,12 +220,15 @@ fn generate_examples_inner(use_color: bool, examples: &[(&str, Option<&str>)]) -
     // Define styles
     let header_style;
     let prompt_style;
+    let comment_style;
     if use_color {
         header_style = Colour::Yellow.normal();
         prompt_style = Colour::Green.normal();
+        comment_style = Colour::Cyan.normal();
     } else {
         header_style = ansi_term::Style::default();
         prompt_style = ansi_term::Style::default();
+        comment_style = ansi_term::Style::default();
     }
 
     let prompt = prompt_style.paint("$");
@@ -230,6 +236,16 @@ fn generate_examples_inner(use_color: bool, examples: &[(&str, Option<&str>)]) -
     let formatted: Vec<_> = examples
         .iter()
         .map(|(cmd_line, output)| {
+            // Handle comments
+            let cmd_line = match cmd_line.find('#') {
+                None => cmd_line.to_string(),
+                Some(index) => format!(
+                    "{}{}",
+                    &cmd_line[..index],
+                    comment_style.paint(&cmd_line[index..])
+                ),
+            };
+            // Handle output
             let output_str = match output {
                 Some(s) => format!("\n    {}", s.replace("\n", "\n    ")),
                 None => "".to_string(),
@@ -383,13 +399,13 @@ mod tests {
             generate_examples_inner(
                 false,
                 &[
-                    ("mkdir tmp-dir", None),
+                    ("mkdir tmp-dir # inline comment", None),
                     ("cd tmp-dir", None),
                     ("tmsu init", Some("tmsu: /tmp/tmp-dir: creating database"))
                 ]
             ),
             "EXAMPLES:
-    $ mkdir tmp-dir
+    $ mkdir tmp-dir # inline comment
     $ cd tmp-dir
     $ tmsu init
     tmsu: /tmp/tmp-dir: creating database"
@@ -397,9 +413,9 @@ mod tests {
 
         // With colors
         assert_eq!(
-            generate_examples_inner(true, &[("hello", None)]),
+            generate_examples_inner(true, &[("hello # comment", None)]),
             "\u{1b}[33mEXAMPLES:\u{1b}[0m
-    \u{1b}[32m$\u{1b}[0m hello"
+    \u{1b}[32m$\u{1b}[0m hello \u{1b}[36m# comment\u{1b}[0m"
         );
     }
 
