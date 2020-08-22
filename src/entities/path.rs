@@ -40,12 +40,14 @@ impl ops::Deref for CanonicalPath {
 /// directory (possibly after cleaning up and resolving symlinks), then it is stored as a relative
 /// path (relative to `base`). Otherwise it is stored as an absolute, canonical path.
 ///
+/// This stored part, either relative or absolute, is accessible via the `inner()` method.
+///
 /// See the documentation of `new()` for more details.
 #[derive(Debug)]
 pub struct ScopedPath<'a> {
-    // TODO: the `base` field is not really used after construction
     base: &'a CanonicalPath,
     inner: PathBuf,
+    absolute: PathBuf,
 }
 
 impl<'a> ScopedPath<'a> {
@@ -55,6 +57,16 @@ impl<'a> ScopedPath<'a> {
     ///
     /// The given `path` can be either relative or absolute. If relative, it is assumed to be
     /// relative to `base`, not to the current directory.
+    ///
+    /// E.g.:
+    /// ```rust
+    /// let base = CanonicalPath::new("/foo/bar").unwrap();
+    /// assert_eq!(ScopedPath::new(&base, "baz").unwrap().inner(), &Path::new("baz"));
+    /// assert_eq!(ScopedPath::new(&base, "/tmp/foo/bar/baz").unwrap().inner(), &Path::new("baz"));
+    /// assert_eq!(ScopedPath::new(&base, "../baz").unwrap().inner(), &Path::new("/tmp/foo/baz"));
+    /// assert_eq!(ScopedPath::new(&base, "/tmp/foo").unwrap().inner(), &Path::new("/tmp/foo"));
+    /// assert_eq!(ScopedPath::new(&base, "./baz/.././dummy/../").unwrap().inner(), &Path::new("."));
+    /// ```
     pub fn new<P: AsRef<Path>>(base: &'a CanonicalPath, path: P) -> Result<Self> {
         assert!(base.is_dir(), "The base must be a directory");
 
@@ -98,7 +110,18 @@ impl<'a> ScopedPath<'a> {
             }
         };
 
-        Ok(ScopedPath { base, inner })
+        // Pre-compute the full (absolute) path, for easy Path conversion
+        let absolute = if inner.is_absolute() {
+            inner.clone()
+        } else {
+            base.join(&inner)
+        };
+
+        Ok(ScopedPath {
+            base,
+            inner,
+            absolute,
+        })
     }
 
     /// Extract and return the base (parent directory) and name from the "inner" portion (which
@@ -132,6 +155,19 @@ impl<'a> ScopedPath<'a> {
         };
 
         (base.as_os_str().to_owned(), name.to_owned())
+    }
+
+    pub fn inner(&self) -> &Path {
+        &self.inner
+    }
+}
+
+// Make all the `Path` methods available on ScopedPath
+impl<'a> ops::Deref for ScopedPath<'a> {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.absolute
     }
 }
 
@@ -261,5 +297,20 @@ mod tests {
         // Special cases
         assert_dir_name(".", ".", ".");
         assert_dir_name("/", "/", "/");
+    }
+
+    #[test]
+    fn test_deref() {
+        fn assert_deref(inner: &str, expected_path: &Path) {
+            let path_ref: &Path = &ScopedPath::new(&BASE, inner).unwrap();
+            assert_eq!(path_ref, expected_path);
+        }
+
+        // Relative paths
+        assert_deref("foo", &join!(TESTS_ROOT, "foo"));
+
+        // Absolute paths
+        fs::create_dir_all("/tmp/foo").unwrap();
+        assert_deref("/tmp/foo", &PathBuf::from("/tmp/foo"));
     }
 }
